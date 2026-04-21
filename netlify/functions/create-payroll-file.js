@@ -1,6 +1,4 @@
-const { getStore } = require("@netlify/blobs");
 const iconv = require("iconv-lite");
-const crypto = require("crypto");
 
 exports.handler = async function (event) {
   try {
@@ -16,42 +14,25 @@ exports.handler = async function (event) {
     if (!filename || !content) {
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: "filename and content are required" }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          error: "filename and content are required",
+        }),
       };
     }
 
     const tis620Buffer = iconv.encode(content, "tis620");
 
-    const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const id = crypto.randomUUID();
-    const key = `payroll/${id}-${safeName}`;
-
-    const store = getStore("payroll-files");
-    await store.set(key, tis620Buffer, {
-      metadata: {
-        filename: safeName,
-        encoding: "tis620",
-        contentType: "text/plain",
-      },
-    });
-
-    const siteUrl =
-      process.env.URL || process.env.DEPLOY_PRIME_URL || process.env.DEPLOY_URL;
-
-    const fileUrl = `${siteUrl}/.netlify/functions/download?key=${encodeURIComponent(
-      key
-    )}&filename=${encodeURIComponent(safeName)}`;
-
     return {
       statusCode: 200,
+      isBase64Encoded: true,
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type": "text/plain; charset=tis-620",
+        "Content-Disposition": `attachment; filename="${filename}"`,
       },
-      body: JSON.stringify({
-        ok: true,
-        fileUrl,
-        key,
-      }),
+      body: tis620Buffer.toString("base64"),
     };
   } catch (error) {
     return {
